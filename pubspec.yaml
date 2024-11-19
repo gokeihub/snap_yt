@@ -40,10 +40,28 @@ dependencies:
   youtube_explode_dart: ^2.3.1
   flutter_local_notifications: ^17.2.3
   path_provider: ^2.1.4
+  icons_launcher: ^3.0.0
+  flutter_lints: ^5.0.0
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
+
+icons_launcher:
+  image_path: "assets/applogo.png"
+  platforms:
+    android:
+      enable: true    
+    ios:
+      enable: true 
+    web:
+      enable: true
+    macos:
+      enable: true  
+    windows:
+      enable: true
+    linux:
+      enable: true
 
   # The "flutter_lints" package below contains a set of recommended lints to
   # encourage good coding practices. The lint set provided by the package is

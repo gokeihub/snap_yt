@@ -1,30 +1,32 @@
+// ignore_for_file: use_build_context_synchronously
+
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:youtube_explode_dart/youtube_explode_dart.dart';
 
-class YoutubeVideoDownloader extends StatefulWidget {
-  const YoutubeVideoDownloader({super.key});
+class YoutubeDownloader extends StatefulWidget {
+  const YoutubeDownloader({super.key});
 
   @override
-  YoutubeVideoDownloaderState createState() => YoutubeVideoDownloaderState();
+  YoutubeDownloaderState createState() => YoutubeDownloaderState();
 }
 
-class YoutubeVideoDownloaderState extends State<YoutubeVideoDownloader> {
+class YoutubeDownloaderState extends State<YoutubeDownloader> {
   final TextEditingController _controller = TextEditingController();
-  bool _isLoading = false;
-  String _downloadType = 'Video';
-  double _downloadProgress = 0.0;
-  String _downloadStatus = '';
+  String _downloadType = 'Video'; // Default: Video
+  bool isLoading = false;
+  String statusMessage = '';
   late YoutubeExplode yt;
-  late Video video;
-  late StreamInfo streamInfo;
-  late File file;
-  late IOSink output;
-  late Stream<List<int>> stream;
-  bool _isDownloading = false;
-
+  List<_DownloadTask> _tasks = [];
   bool _isCanceled = false;
+  bool isDownloading = false;
+
+  @override
+  void initState() {
+    super.initState();
+    yt = YoutubeExplode(); // Initialize yt when the state is created
+  }
 
   Future<bool> _requestPermissions() async {
     if (await Permission.storage.request().isGranted) return true;
@@ -35,110 +37,155 @@ class YoutubeVideoDownloaderState extends State<YoutubeVideoDownloader> {
         await Permission.manageExternalStorage.request().isGranted;
   }
 
-  Future<void> _downloadContent(String url) async {
+  Future<void> _fetchPlaylist(String playlistUrl) async {
     setState(() {
-      _isLoading = true;
-      _downloadProgress = 0.0;
-      _downloadStatus = 'Preparing download...';
+      isLoading = true;
+      statusMessage = 'Fetching playlist details...';
+      _tasks
+          .clear(); // Clear previous task list when switching to playlist mode
     });
 
-    if (!await _requestPermissions()) {
+    try {
+      final playlist = await yt.playlists.get(playlistUrl);
+      final videos = await yt.playlists.getVideos(playlist.id).toList();
+
+      setState(() {
+        _tasks = videos
+            .map((video) =>
+                _DownloadTask(video.title, video.id.toString(), 0.0, 'Pending'))
+            .toList();
+        statusMessage = 'Found ${videos.length} videos in the playlist.';
+        isLoading = false;
+      });
+    } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Storage permission not granted')),
+        SnackBar(content: Text('Error fetching playlist: $e')),
       );
       setState(() {
-        _isLoading = false;
+        isLoading = false;
+        statusMessage = '';
       });
-      return;
     }
+  }
 
+  Future<void> _downloadVideo(String videoId, _DownloadTask? task) async {
     try {
-      yt = YoutubeExplode();
-      video = await yt.videos.get(url);
-      var manifest = await yt.videos.streamsClient.getManifest(video.id);
-
       final Directory downloadsDir = Directory('/storage/emulated/0/Download');
       if (!downloadsDir.existsSync()) {
         downloadsDir.createSync(recursive: true);
       }
 
-      if (_downloadType == 'Video') {
-        if (manifest.muxed.isEmpty) {
-          throw Exception('No video streams available for download.');
-        }
+      final video = await yt.videos.get(videoId);
+      final manifest = await yt.videos.streamsClient.getManifest(video.id);
 
-        streamInfo = manifest.muxed.withHighestBitrate();
-        var filePath =
-            '${downloadsDir.path}/${_sanitizeFileName(video.title)}.mp4';
-        file = File(filePath);
-        stream = yt.videos.streamsClient.get(streamInfo);
+      if (manifest.muxed.isEmpty) {
+        throw Exception('No video streams available for download.');
+      }
 
-        final totalBytes = streamInfo.size.totalBytes;
-        var downloadedBytes = 0;
+      final streamInfo = manifest.muxed.withHighestBitrate();
+      final filePath =
+          '${downloadsDir.path}/${_sanitizeFileName(video.title)}.mp4';
+      final file = File(filePath);
+      final stream = yt.videos.streamsClient.get(streamInfo);
 
-        output = file.openWrite();
+      final totalBytes = streamInfo.size.totalBytes;
+      var downloadedBytes = 0;
+      final output = file.openWrite();
 
-        _isDownloading = true;
+      if (task != null) {
+        task.status = 'Downloading';
+      }
 
-        _isCanceled = false;
+      setState(() {
+        isDownloading = true;
+      });
 
-        await for (final chunk in stream) {
-          if (_isCanceled) {
-            break;
-          }
+      await for (final chunk in stream) {
+        if (_isCanceled) break;
 
-          downloadedBytes += chunk.length;
-          output.add(chunk);
+        downloadedBytes += chunk.length;
+        output.add(chunk);
 
-          final progress = downloadedBytes / totalBytes;
-          final downloadedMB =
-              (downloadedBytes / (1024 * 1024)).toStringAsFixed(1);
-          final totalMB = (totalBytes / (1024 * 1024)).toStringAsFixed(1);
+        final progress = downloadedBytes / totalBytes;
 
+        if (task != null) {
           setState(() {
-            _downloadProgress = progress;
-            _downloadStatus = 'Downloaded $downloadedMB MB / $totalMB MB';
+            task.progress = progress;
+            task.status = 'Downloading ${(progress * 100).toStringAsFixed(1)}%';
+          });
+        } else {
+          setState(() {
+            statusMessage =
+                'Downloading ${(progress * 100).toStringAsFixed(1)}%';
           });
         }
-
-        await output.flush();
-        await output.close();
-
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Downloaded video: ${video.title}')),
-        );
       }
-    } catch (e) {
-      String errorMessage;
-      if (e is VideoUnavailableException) {
-        errorMessage = 'This video is unavailable.';
-      } else if (e is YoutubeExplodeException) {
-        errorMessage = 'Failed to extract data: ${e.message}';
-      } else {
-        errorMessage = 'Error: $e';
+
+      await output.flush();
+      await output.close();
+
+      if (!_isCanceled) {
+        if (task != null) {
+          task.status = 'Completed';
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Downloaded video: ${video.title}')),
+          );
+        }
       }
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(errorMessage)),
-      );
-    } finally {
       setState(() {
-        _isLoading = false;
-        _downloadProgress = 0.0;
-        _downloadStatus = '';
+        isDownloading = false;
       });
+    } catch (e) {
+      if (task != null) {
+        task.status = 'Error';
+      }
+      setState(() {
+        isDownloading = false;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error downloading video: $e')),
+      );
     }
+  }
+
+  Future<void> _downloadPlaylist() async {
+    if (!await _requestPermissions()) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Storage permission not granted')),
+      );
+      return;
+    }
+
+    setState(() {
+      _isCanceled = false;
+    });
+
+    for (final task in _tasks) {
+      if (_isCanceled) break;
+      await _downloadVideo(task.videoId, task);
+    }
+
+    if (!_isCanceled) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Playlist download completed!')),
+      );
+    }
+  }
+
+  void _cancelDownloads() {
+    setState(() {
+      _isCanceled = true;
+      for (var task in _tasks) {
+        if (task.status == 'Downloading') {
+          task.status = 'Canceled';
+        }
+      }
+    });
   }
 
   String _sanitizeFileName(String fileName) {
     return fileName.replaceAll(RegExp(r'[<>:"/\\|?*]'), '_');
-  }
-
-  void _cancelDownload() {
-    setState(() {
-      _isCanceled = true;
-      _isDownloading = false;
-      _downloadStatus = 'Download canceled';
-    });
   }
 
   @override
@@ -153,9 +200,12 @@ class YoutubeVideoDownloaderState extends State<YoutubeVideoDownloader> {
           children: [
             TextField(
               controller: _controller,
-              decoration: const InputDecoration(
-                labelText: 'Enter YouTube Video URL',
-                border: OutlineInputBorder(),
+              decoration:  InputDecoration(
+                suffixIcon: IconButton(onPressed: (){
+                  _controller.clear();
+                }, icon: const Icon(Icons.cancel_outlined) ),
+                labelText: 'Enter YouTube URL',
+                border: const OutlineInputBorder(),
               ),
             ),
             const SizedBox(height: 20),
@@ -164,9 +214,12 @@ class YoutubeVideoDownloaderState extends State<YoutubeVideoDownloader> {
               onChanged: (String? newValue) {
                 setState(() {
                   _downloadType = newValue!;
+                  if (_downloadType != 'Playlist') {
+                    _tasks.clear(); // Clear tasks when switching to video/audio
+                  }
                 });
               },
-              items: <String>['Video', 'Audio']
+              items: <String>['Video', 'Audio', 'Playlist']
                   .map<DropdownMenuItem<String>>((String value) {
                 return DropdownMenuItem<String>(
                   value: value,
@@ -175,40 +228,63 @@ class YoutubeVideoDownloaderState extends State<YoutubeVideoDownloader> {
               }).toList(),
             ),
             const SizedBox(height: 20),
-            if (_isLoading) ...[
-              LinearProgressIndicator(value: _downloadProgress),
-              const SizedBox(height: 10),
-              Text(_downloadStatus),
-              const SizedBox(height: 10),
-            ],
             ElevatedButton(
-              onPressed: _isDownloading
-                  ? null
-                  : () {
-                      var url = _controller.text.trim();
-                      if (url.isNotEmpty) {
-                        _downloadContent(url);
-                      }
-                    },
-              child: _isLoading
-                  ? const SizedBox(
-                      width: 20,
-                      height: 20,
-                      child: CircularProgressIndicator(
-                        valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                      ),
-                    )
-                  : const Text('Download'),
+              onPressed: () {
+                var url = _controller.text.trim();
+                if (url.isNotEmpty) {
+                  if (_downloadType == 'Playlist') {
+                    _fetchPlaylist(url);
+                  } else {
+                    _downloadVideo(url, null);
+                  }
+                }
+              },
+              child: const Text('Start'),
             ),
-            if (_isDownloading) ...[
-              ElevatedButton(
-                onPressed: _cancelDownload,
-                child: const Text('Cancel'),
+            const SizedBox(height: 20),
+            if (_tasks.isNotEmpty)
+              Expanded(
+                child: ListView.builder(
+                  itemCount: _tasks.length,
+                  itemBuilder: (context, index) {
+                    final task = _tasks[index];
+                    return ListTile(
+                      title: Text(task.title),
+                      subtitle: Text(task.status),
+                      trailing: task.status.contains('Downloading')
+                          ? CircularProgressIndicator(value: task.progress)
+                          : null,
+                    );
+                  },
+                ),
               ),
+            if (_tasks.isNotEmpty) ...[
+              ElevatedButton(
+                onPressed: _downloadPlaylist,
+                child: const Text('Download All'),
+              ),
+              const SizedBox(height: 10),
+              ElevatedButton(
+                onPressed: _cancelDownloads,
+                child: const Text('Cancel All'),
+              ),
+            ],
+            if (isDownloading) ...[
+              const CircularProgressIndicator(),
+              Text(statusMessage),
             ]
           ],
         ),
       ),
     );
   }
+}
+
+class _DownloadTask {
+  final String title;
+  final String videoId;
+  double progress;
+  String status;
+
+  _DownloadTask(this.title, this.videoId, this.progress, this.status);
 }
