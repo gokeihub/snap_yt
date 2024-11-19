@@ -2,35 +2,39 @@ import 'package:flutter/material.dart';
 import 'package:youtube_explode_dart/youtube_explode_dart.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'dart:io';
-import 'package:path_provider/path_provider.dart';
 
 void main() {
-  runApp(MyApp());
+  runApp(const MyApp());
 }
 
 class MyApp extends StatelessWidget {
+  const MyApp({super.key});
+
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'YouTube Video Downloader',
+      title: 'YouTube Downloader',
       theme: ThemeData(
         primarySwatch: Colors.blue,
       ),
-      home: MyHomePage(),
+      home: const MyHomePage(),
     );
   }
 }
 
 class MyHomePage extends StatefulWidget {
+  const MyHomePage({super.key});
+
   @override
-  _MyHomePageState createState() => _MyHomePageState();
+  MyHomePageState createState() => MyHomePageState();
 }
 
-class _MyHomePageState extends State<MyHomePage> {
+class MyHomePageState extends State<MyHomePage> {
   final TextEditingController _controller = TextEditingController();
   bool _isLoading = false;
+  String _downloadType = 'Video'; // Default download type
 
-  Future<void> _downloadVideo(String url) async {
+  Future<void> _downloadContent(String url) async {
     setState(() {
       _isLoading = true;
     });
@@ -39,38 +43,54 @@ class _MyHomePageState extends State<MyHomePage> {
     if (await Permission.storage.request().isGranted) {
       try {
         var yt = YoutubeExplode();
-        // var videoId = YoutubeExplode.parseVideoId(url); // Extract video ID
         var video = await yt.videos.get(url);
         var manifest = await yt.videos.streamsClient.getManifest(video.id);
 
-        // Check if there are any streams available for download
-        if (manifest.muxed.isEmpty) {
-          throw Exception('No downloadable streams found for this video.');
+        var dir = Directory('/storage/emulated/0/Download'); // Download path
+        dir.createSync(recursive: true); // Ensure the directory exists
+
+        if (_downloadType == 'Video') {
+          // Video download
+          if (manifest.muxed.isEmpty) {
+            throw Exception('No video streams available for download.');
+          }
+          var streamInfo = manifest.muxed.withHighestBitrate();
+          var filePath = '${dir.path}/${video.title}.mp4';
+          var file = File(filePath);
+          var stream = yt.videos.streamsClient.get(streamInfo);
+          var output = file.openWrite();
+          await stream.pipe(output);
+          await output.flush();
+          await output.close();
+
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text('Downloaded video: ${video.title}'),
+          ));
+        } else {
+          // Audio download
+          if (manifest.audioOnly.isEmpty) {
+            throw Exception('No audio streams available for download.');
+          }
+          var streamInfo = manifest.audioOnly.withHighestBitrate();
+          var filePath = '${dir.path}/${video.title}.mp3';
+          var file = File(filePath);
+          var stream = yt.videos.streamsClient.get(streamInfo);
+          var output = file.openWrite();
+          await stream.pipe(output);
+          await output.flush();
+          await output.close();
+
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text('Downloaded audio: ${video.title}'),
+          ));
         }
-
-        var streamInfo = manifest.muxed.withHighestBitrate();
-        var dir = Directory('/storage/emulated/0/Download'); // Path to the download folder
-        var filePath = '${dir.path}/${video.title}.mp4';
-        var file = File(filePath);
-        var stream = yt.videos.streamsClient.get(streamInfo);
-
-        // Start downloading the video
-        var output = file.openWrite();
-        await stream.pipe(output);
-        await output.flush();
-        await output.close();
-
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text('Downloaded: ${video.title}'),
-        ));
       } catch (e) {
         String errorMessage;
 
-        // Handle different types of exceptions
         if (e is VideoUnavailableException) {
           errorMessage = 'This video is unavailable.';
         } else if (e is YoutubeExplodeException) {
-          errorMessage = 'Failed to extract video data: ${e.message}';
+          errorMessage = 'Failed to extract data: ${e.message}';
         } else {
           errorMessage = 'Error: $e';
         }
@@ -84,7 +104,7 @@ class _MyHomePageState extends State<MyHomePage> {
         });
       }
     } else {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
         content: Text('Storage permission not granted'),
       ));
     }
@@ -94,7 +114,7 @@ class _MyHomePageState extends State<MyHomePage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text('YouTube Video Downloader'),
+        title: const Text('YouTube Downloader'),
       ),
       body: Padding(
         padding: const EdgeInsets.all(16.0),
@@ -102,25 +122,42 @@ class _MyHomePageState extends State<MyHomePage> {
           children: [
             TextField(
               controller: _controller,
-              decoration: InputDecoration(
+              decoration: const InputDecoration(
                 labelText: 'Enter YouTube Video URL',
+                border: OutlineInputBorder(),
               ),
             ),
-            SizedBox(height: 20),
+            const SizedBox(height: 20),
+            DropdownButton<String>(
+              value: _downloadType,
+              onChanged: (String? newValue) {
+                setState(() {
+                  _downloadType = newValue!;
+                });
+              },
+              items: <String>['Video', 'Audio']
+                  .map<DropdownMenuItem<String>>((String value) {
+                return DropdownMenuItem<String>(
+                  value: value,
+                  child: Text(value),
+                );
+              }).toList(),
+            ),
+            const SizedBox(height: 20),
             ElevatedButton(
               onPressed: _isLoading
                   ? null
                   : () {
                       var url = _controller.text.trim();
                       if (url.isNotEmpty) {
-                        _downloadVideo(url);
+                        _downloadContent(url);
                       }
                     },
               child: _isLoading
-                  ? CircularProgressIndicator(
+                  ? const CircularProgressIndicator(
                       valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
                     )
-                  : Text('Download'),
+                  : const Text('Download'),
             ),
           ],
         ),
