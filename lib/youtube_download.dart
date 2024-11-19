@@ -1,7 +1,4 @@
-// ignore_for_file: use_build_context_synchronously
-
 import 'dart:io';
-
 import 'package:flutter/material.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:youtube_explode_dart/youtube_explode_dart.dart';
@@ -16,13 +13,21 @@ class YoutubeVideoDownloader extends StatefulWidget {
 class YoutubeVideoDownloaderState extends State<YoutubeVideoDownloader> {
   final TextEditingController _controller = TextEditingController();
   bool _isLoading = false;
-  String _downloadType = 'Video'; // Default download type
+  String _downloadType = 'Video';
+  double _downloadProgress = 0.0;
+  String _downloadStatus = '';
+  late YoutubeExplode yt;
+  late Video video;
+  late StreamInfo streamInfo;
+  late File file;
+  late IOSink output;
+  late Stream<List<int>> stream;
+  bool _isDownloading = false;
 
-  /// Requests necessary permissions
+  bool _isCanceled = false;
+
   Future<bool> _requestPermissions() async {
     if (await Permission.storage.request().isGranted) return true;
-
-    // For Android 11+, request manage external storage permission
     if (await Permission.manageExternalStorage.isGranted) return true;
 
     final status = await Permission.storage.request();
@@ -30,17 +35,17 @@ class YoutubeVideoDownloaderState extends State<YoutubeVideoDownloader> {
         await Permission.manageExternalStorage.request().isGranted;
   }
 
-  /// Downloads content (video or audio) from a YouTube URL
   Future<void> _downloadContent(String url) async {
     setState(() {
       _isLoading = true;
+      _downloadProgress = 0.0;
+      _downloadStatus = 'Preparing download...';
     });
 
-    // Check for storage permission
     if (!await _requestPermissions()) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-        content: Text('Storage permission not granted'),
-      ));
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Storage permission not granted')),
+      );
       setState(() {
         _isLoading = false;
       });
@@ -48,56 +53,63 @@ class YoutubeVideoDownloaderState extends State<YoutubeVideoDownloader> {
     }
 
     try {
-      var yt = YoutubeExplode();
-      var video = await yt.videos.get(url);
+      yt = YoutubeExplode();
+      video = await yt.videos.get(url);
       var manifest = await yt.videos.streamsClient.getManifest(video.id);
 
-      // Determine save location
       final Directory downloadsDir = Directory('/storage/emulated/0/Download');
       if (!downloadsDir.existsSync()) {
-        downloadsDir.createSync(recursive: true); // Ensure directory exists
+        downloadsDir.createSync(recursive: true);
       }
 
       if (_downloadType == 'Video') {
-        // Video download
         if (manifest.muxed.isEmpty) {
           throw Exception('No video streams available for download.');
         }
-        var streamInfo = manifest.muxed.withHighestBitrate();
+
+        streamInfo = manifest.muxed.withHighestBitrate();
         var filePath =
             '${downloadsDir.path}/${_sanitizeFileName(video.title)}.mp4';
-        var file = File(filePath);
-        var stream = yt.videos.streamsClient.get(streamInfo);
-        var output = file.openWrite();
-        await stream.pipe(output);
-        await output.flush();
-        await output.close();
+        file = File(filePath);
+        stream = yt.videos.streamsClient.get(streamInfo);
 
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text('Downloaded video: ${video.title}'),
-        ));
-      } else {
-        // Audio download
-        if (manifest.audioOnly.isEmpty) {
-          throw Exception('No audio streams available for download.');
+        final totalBytes = streamInfo.size.totalBytes;
+        var downloadedBytes = 0;
+
+        output = file.openWrite();
+
+        _isDownloading = true;
+
+        _isCanceled = false;
+
+        await for (final chunk in stream) {
+          if (_isCanceled) {
+            break;
+          }
+
+          downloadedBytes += chunk.length;
+          output.add(chunk);
+
+          final progress = downloadedBytes / totalBytes;
+          final downloadedMB =
+              (downloadedBytes / (1024 * 1024)).toStringAsFixed(1);
+          final totalMB = (totalBytes / (1024 * 1024)).toStringAsFixed(1);
+
+          setState(() {
+            _downloadProgress = progress;
+            _downloadStatus = 'Downloaded $downloadedMB MB / $totalMB MB';
+          });
         }
-        var streamInfo = manifest.audioOnly.withHighestBitrate();
-        var filePath =
-            '${downloadsDir.path}/${_sanitizeFileName(video.title)}.mp3';
-        var file = File(filePath);
-        var stream = yt.videos.streamsClient.get(streamInfo);
-        var output = file.openWrite();
-        await stream.pipe(output);
+
         await output.flush();
         await output.close();
 
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text('Downloaded audio: ${video.title}'),
-        ));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Downloaded video: ${video.title}')),
+        );
       }
     } catch (e) {
       String errorMessage;
-
       if (e is VideoUnavailableException) {
         errorMessage = 'This video is unavailable.';
       } else if (e is YoutubeExplodeException) {
@@ -105,20 +117,28 @@ class YoutubeVideoDownloaderState extends State<YoutubeVideoDownloader> {
       } else {
         errorMessage = 'Error: $e';
       }
-
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text(errorMessage),
-      ));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(errorMessage)),
+      );
     } finally {
       setState(() {
         _isLoading = false;
+        _downloadProgress = 0.0;
+        _downloadStatus = '';
       });
     }
   }
 
-  /// Sanitizes file names to remove invalid characters
   String _sanitizeFileName(String fileName) {
     return fileName.replaceAll(RegExp(r'[<>:"/\\|?*]'), '_');
+  }
+
+  void _cancelDownload() {
+    setState(() {
+      _isCanceled = true;
+      _isDownloading = false;
+      _downloadStatus = 'Download canceled';
+    });
   }
 
   @override
@@ -155,8 +175,14 @@ class YoutubeVideoDownloaderState extends State<YoutubeVideoDownloader> {
               }).toList(),
             ),
             const SizedBox(height: 20),
+            if (_isLoading) ...[
+              LinearProgressIndicator(value: _downloadProgress),
+              const SizedBox(height: 10),
+              Text(_downloadStatus),
+              const SizedBox(height: 10),
+            ],
             ElevatedButton(
-              onPressed: _isLoading
+              onPressed: _isDownloading
                   ? null
                   : () {
                       var url = _controller.text.trim();
@@ -165,11 +191,21 @@ class YoutubeVideoDownloaderState extends State<YoutubeVideoDownloader> {
                       }
                     },
               child: _isLoading
-                  ? const CircularProgressIndicator(
-                      valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                  ? const SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(
+                        valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                      ),
                     )
                   : const Text('Download'),
             ),
+            if (_isDownloading) ...[
+              ElevatedButton(
+                onPressed: _cancelDownload,
+                child: const Text('Cancel'),
+              ),
+            ]
           ],
         ),
       ),
