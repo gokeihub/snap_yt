@@ -42,6 +42,8 @@ dependencies:
   path_provider: ^2.1.4
   icons_launcher: ^3.0.0
   flutter_lints: ^5.0.0
+  klutter_platfrom_verify: ^0.0.2
+  flutter_ffmpeg: ^0.4.2
 
 dev_dependencies:
   flutter_test:
