@@ -25,7 +25,7 @@ class YoutubeDownloaderState extends State<YoutubeDownloader> {
   @override
   void initState() {
     super.initState();
-    yt = YoutubeExplode(); // Initialize yt when the state is created
+    yt = YoutubeExplode();
   }
 
   Future<bool> _requestPermissions() async {
@@ -41,8 +41,7 @@ class YoutubeDownloaderState extends State<YoutubeDownloader> {
     setState(() {
       isLoading = true;
       statusMessage = 'Fetching playlist details...';
-      _tasks
-          .clear(); // Clear previous task list when switching to playlist mode
+      _tasks.clear(); // Clear previous task list when switching to playlist mode
     });
 
     try {
@@ -65,6 +64,87 @@ class YoutubeDownloaderState extends State<YoutubeDownloader> {
         isLoading = false;
         statusMessage = '';
       });
+    }
+  }
+
+  Future<void> _downloadAudio(String videoId, _DownloadTask? task) async {
+    try {
+      final Directory downloadsDir = Directory('/storage/emulated/0/Download');
+      if (!downloadsDir.existsSync()) {
+        downloadsDir.createSync(recursive: true);
+      }
+
+      final video = await yt.videos.get(videoId);
+      final manifest = await yt.videos.streamsClient.getManifest(video.id);
+
+      if (manifest.audioOnly.isEmpty) {
+        throw Exception('No audio streams available for download.');
+      }
+
+      final streamInfo = manifest.audioOnly.withHighestBitrate();
+      final filePath =
+          '${downloadsDir.path}/${_sanitizeFileName(video.title)}.mp3';
+      final file = File(filePath);
+      final stream = yt.videos.streamsClient.get(streamInfo);
+
+      final totalBytes = streamInfo.size.totalBytes;
+      var downloadedBytes = 0;
+      final output = file.openWrite();
+
+      if (task != null) {
+        task.status = 'Downloading';
+      }
+
+      setState(() {
+        isDownloading = true;
+      });
+
+      await for (final chunk in stream) {
+        if (_isCanceled) break;
+
+        downloadedBytes += chunk.length;
+        output.add(chunk);
+
+        final progress = downloadedBytes / totalBytes;
+
+        if (task != null) {
+          setState(() {
+            task.progress = progress;
+            task.status = 'Downloading ${(progress * 100).toStringAsFixed(1)}%';
+          });
+        } else {
+          setState(() {
+            statusMessage =
+                'Downloading ${(progress * 100).toStringAsFixed(1)}%';
+          });
+        }
+      }
+
+      await output.flush();
+      await output.close();
+
+      if (!_isCanceled) {
+        if (task != null) {
+          task.status = 'Completed';
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Downloaded audio: ${video.title}')),
+          );
+        }
+      }
+      setState(() {
+        isDownloading = false;
+      });
+    } catch (e) {
+      if (task != null) {
+        task.status = 'Error';
+      }
+      setState(() {
+        isDownloading = false;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error downloading audio: $e')),
+      );
     }
   }
 
@@ -149,41 +229,6 @@ class YoutubeDownloaderState extends State<YoutubeDownloader> {
     }
   }
 
-  Future<void> _downloadPlaylist() async {
-    if (!await _requestPermissions()) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Storage permission not granted')),
-      );
-      return;
-    }
-
-    setState(() {
-      _isCanceled = false;
-    });
-
-    for (final task in _tasks) {
-      if (_isCanceled) break;
-      await _downloadVideo(task.videoId, task);
-    }
-
-    if (!_isCanceled) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Playlist download completed!')),
-      );
-    }
-  }
-
-  void _cancelDownloads() {
-    setState(() {
-      _isCanceled = true;
-      for (var task in _tasks) {
-        if (task.status == 'Downloading') {
-          task.status = 'Canceled';
-        }
-      }
-    });
-  }
-
   String _sanitizeFileName(String fileName) {
     return fileName.replaceAll(RegExp(r'[<>:"/\\|?*]'), '_');
   }
@@ -200,10 +245,12 @@ class YoutubeDownloaderState extends State<YoutubeDownloader> {
           children: [
             TextField(
               controller: _controller,
-              decoration:  InputDecoration(
-                suffixIcon: IconButton(onPressed: (){
-                  _controller.clear();
-                }, icon: const Icon(Icons.cancel_outlined) ),
+              decoration: InputDecoration(
+                suffixIcon: IconButton(
+                    onPressed: () {
+                      _controller.clear();
+                    },
+                    icon: const Icon(Icons.cancel_outlined)),
                 labelText: 'Enter YouTube URL',
                 border: const OutlineInputBorder(),
               ),
@@ -229,11 +276,21 @@ class YoutubeDownloaderState extends State<YoutubeDownloader> {
             ),
             const SizedBox(height: 20),
             ElevatedButton(
-              onPressed: () {
+              onPressed: () async {
+                if (!await _requestPermissions()) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                        content: Text('Storage permission not granted')),
+                  );
+                  return;
+                }
+
                 var url = _controller.text.trim();
                 if (url.isNotEmpty) {
                   if (_downloadType == 'Playlist') {
                     _fetchPlaylist(url);
+                  } else if (_downloadType == 'Audio') {
+                    _downloadAudio(url, null);
                   } else {
                     _downloadVideo(url, null);
                   }
@@ -260,12 +317,46 @@ class YoutubeDownloaderState extends State<YoutubeDownloader> {
               ),
             if (_tasks.isNotEmpty) ...[
               ElevatedButton(
-                onPressed: _downloadPlaylist,
+                onPressed: () async {
+                  if (!await _requestPermissions()) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                          content: Text('Storage permission not granted')),
+                    );
+                    return;
+                  }
+                  setState(() {
+                    _isCanceled = false;
+                  });
+                  for (final task in _tasks) {
+                    if (_isCanceled) break;
+                    if (_downloadType == 'Audio') {
+                      await _downloadAudio(task.videoId, task);
+                    } else {
+                      await _downloadVideo(task.videoId, task);
+                    }
+                  }
+                  if (!_isCanceled) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                          content: Text('Playlist download completed!')),
+                    );
+                  }
+                },
                 child: const Text('Download All'),
               ),
               const SizedBox(height: 10),
               ElevatedButton(
-                onPressed: _cancelDownloads,
+                onPressed: () {
+                  setState(() {
+                    _isCanceled = true;
+                    for (var task in _tasks) {
+                      if (task.status == 'Downloading') {
+                        task.status = 'Canceled';
+                      }
+                    }
+                  });
+                },
                 child: const Text('Cancel All'),
               ),
             ],
