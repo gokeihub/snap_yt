@@ -5,6 +5,7 @@ import 'youtube_download.dart';
 
 void main() {
   runApp(const MyApp());
+
 }
 
 class MyApp extends StatelessWidget {
@@ -14,8 +15,7 @@ class MyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'YouTube Downloader',
-      theme: ThemeData(
-        primarySwatch: Colors.blue,
+      theme: ThemeData.dark(
       ),
       home: const YoutubeDownloader(),
     );

@@ -2,6 +2,7 @@
 
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:klutter_platfrom_verify/klutter_platfrom_verify.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:youtube_explode_dart/youtube_explode_dart.dart';
@@ -317,6 +318,25 @@ class YoutubeDownloaderState extends State<YoutubeDownloader> {
     return fileName.replaceAll(RegExp(r'[<>:"/\\|?*]'), '_');
   }
 
+  Future<void> _pasteFromClipboard() async {
+    ClipboardData? clipboardData =
+        await Clipboard.getData(Clipboard.kTextPlain);
+    if (clipboardData != null) {
+      setState(() {
+        _controller.text = clipboardData.text!;
+      });
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: const Text('Copy Not found'),
+        duration: const Duration(seconds: 1),
+        action: SnackBarAction(
+          label: 'Cancle',
+          onPressed: () {},
+        ),
+      ));
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -339,7 +359,18 @@ class YoutubeDownloaderState extends State<YoutubeDownloader> {
                 border: const OutlineInputBorder(),
               ),
             ),
-            const SizedBox(height: 20),
+            const SizedBox(height: 10),
+            Align(
+              alignment: Alignment.topLeft,
+              child: ElevatedButton.icon(
+                onPressed: _pasteFromClipboard,
+                label: Text('Paste'),
+                icon: Icon(
+                  Icons.paste,
+                ),
+              ),
+            ),
+            const SizedBox(height: 10),
             DropdownButton<String>(
               value: _downloadType,
               onChanged: (String? newValue) {
@@ -384,7 +415,7 @@ class YoutubeDownloaderState extends State<YoutubeDownloader> {
                   }
                 }
               },
-              child: const Text('Start'),
+              child: const Text('Download'),
             ),
             const SizedBox(height: 20),
             if (_tasks.isNotEmpty)

@@ -1,23 +1,12 @@
+// ignore_for_file: use_build_context_synchronously
+
 import 'dart:io';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:dio/dio.dart';
+import 'package:flutter/services.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:flutter/foundation.dart';
-
-
-
-class VideoDownloaderApp extends StatelessWidget {
-  const VideoDownloaderApp({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return const MaterialApp(
-      title: 'Video Downloader',
-      home: VideoDownloaderScreen(),
-    );
-  }
-}
 
 class VideoDownloaderScreen extends StatefulWidget {
   const VideoDownloaderScreen({super.key});
@@ -39,7 +28,8 @@ class VideoDownloaderScreenState extends State<VideoDownloaderScreen> {
     if (await Permission.manageExternalStorage.isGranted) return true;
 
     final status = await Permission.storage.request();
-    return status.isGranted || await Permission.manageExternalStorage.request().isGranted;
+    return status.isGranted ||
+        await Permission.manageExternalStorage.request().isGranted;
   }
 
   /// Downloads a video and saves it in the public Downloads folder.
@@ -75,7 +65,8 @@ class VideoDownloaderScreenState extends State<VideoDownloaderScreen> {
       final Uint8List fileBytes = Uint8List.fromList(response.data!);
 
       // Save to the public Downloads folder
-      final String fileName = "video_${DateTime.now().millisecondsSinceEpoch}.mp4";
+      final String fileName =
+          "video_${DateTime.now().millisecondsSinceEpoch}.mp4";
       final Directory downloadsDir = Directory('/storage/emulated/0/Download');
       final File file = File('${downloadsDir.path}/$fileName');
 
@@ -96,6 +87,25 @@ class VideoDownloaderScreenState extends State<VideoDownloaderScreen> {
     }
   }
 
+  Future<void> _pasteFromClipboard() async {
+    ClipboardData? clipboardData =
+        await Clipboard.getData(Clipboard.kTextPlain);
+    if (clipboardData != null) {
+      setState(() {
+        _urlController.text = clipboardData.text!;
+      });
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: const Text('Copy Not found'),
+        duration: const Duration(seconds: 1),
+        action: SnackBarAction(
+          label: 'Cancle',
+          onPressed: () {},
+        ),
+      ));
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -113,12 +123,28 @@ class VideoDownloaderScreenState extends State<VideoDownloaderScreen> {
                 border: OutlineInputBorder(),
               ),
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 10),
+            Align(
+              alignment: Alignment.topLeft,
+              child: ElevatedButton.icon(
+                onPressed: _pasteFromClipboard,
+                label: Text('Paste'),
+                icon: Icon(
+                  Icons.paste,
+                ),
+              ),
+            ),
+            const SizedBox(height: 10),
             ElevatedButton(
               onPressed: _isDownloading
                   ? null
                   : () => _downloadVideo(_urlController.text),
-              child: Text(_isDownloading ? "Downloading..." : "Download"),
+              child: Text(
+                _isDownloading ? "Downloading..." : "Download",
+                style: TextStyle(
+                  color: _isDownloading ? Colors.red : Colors.green,
+                ),
+              ),
             ),
             const SizedBox(height: 16),
             Text(
