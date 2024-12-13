@@ -351,10 +351,11 @@ class YoutubeDownloaderState extends State<YoutubeDownloader> {
               controller: _controller,
               decoration: InputDecoration(
                 suffixIcon: IconButton(
-                    onPressed: () {
-                      _controller.clear();
-                    },
-                    icon: const Icon(Icons.cancel_outlined)),
+                  onPressed: () {
+                    _controller.clear();
+                  },
+                  icon: const Icon(Icons.cancel_outlined),
+                ),
                 labelText: 'Enter YouTube URL',
                 border: const OutlineInputBorder(),
               ),

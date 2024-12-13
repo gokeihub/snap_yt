@@ -1,12 +1,10 @@
 // ignore_for_file: use_build_context_synchronously
 
 import 'dart:io';
-import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter/services.dart';
 import 'package:permission_handler/permission_handler.dart';
-import 'package:flutter/foundation.dart';
 
 class VideoDownloaderScreen extends StatefulWidget {
   const VideoDownloaderScreen({super.key});
@@ -118,7 +116,13 @@ class VideoDownloaderScreenState extends State<VideoDownloaderScreen> {
           children: [
             TextField(
               controller: _urlController,
-              decoration: const InputDecoration(
+              decoration:  InputDecoration(
+                 suffixIcon: IconButton(
+                  onPressed: () {
+                    _urlController.clear();
+                  },
+                  icon: const Icon(Icons.cancel_outlined),
+                ),
                 labelText: "Enter Video URL",
                 border: OutlineInputBorder(),
               ),
