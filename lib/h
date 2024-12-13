@@ -1,0 +1,675 @@
+// ignore_for_file: use_build_context_synchronously
+
+import 'dart:io';
+import 'package:flutter/material.dart';
+import 'package:klutter_platfrom_verify/klutter_platfrom_verify.dart';
+import 'package:permission_handler/permission_handler.dart';
+import 'package:youtube_explode_dart/youtube_explode_dart.dart';
+
+class YoutubeDownloader extends StatefulWidget {
+  const YoutubeDownloader({super.key});
+
+  @override
+  YoutubeDownloaderState createState() => YoutubeDownloaderState();
+}
+
+class YoutubeDownloaderState extends State<YoutubeDownloader> {
+  final TextEditingController _controller = TextEditingController();
+  String _downloadType = 'Video'; // Default: Video
+  bool isLoading = false;
+  String statusMessage = '';
+  late YoutubeExplode yt;
+  List<_DownloadTask> _tasks = [];
+  bool _isCanceled = false;
+  bool isDownloading = false;
+
+  @override
+  void initState() {
+    super.initState();
+    yt = YoutubeExplode();
+  }
+
+  Future<bool> _requestPermissions() async {
+    if (await Permission.storage.request().isGranted) return true;
+    if (await Permission.manageExternalStorage.isGranted) return true;
+
+    final status = await Permission.storage.request();
+    return status.isGranted ||
+        await Permission.manageExternalStorage.request().isGranted;
+  }
+
+  Future<void> _fetchPlaylist(String playlistUrl) async {
+  setState(() {
+    isLoading = true;
+    statusMessage = 'Fetching playlist details...';
+    _tasks.clear(); // Clear previous task list when switching to playlist mode
+  });
+
+  try {
+    final playlist = await yt.playlists.get(playlistUrl);
+    final videos = await yt.playlists.getVideos(playlist.id).toList();
+
+    setState(() {
+      _tasks = videos
+          .asMap()
+          .map((index, video) {
+            // Prepending the index + 1 (to start from 1) to the video title
+            return MapEntry(
+              index,
+              _DownloadTask(
+                '${index + 1} ${video.title}', // Add number to the title
+                video.id.toString(),
+                0.0,
+                'Pending',
+              ),
+            );
+          })
+          .values
+          .toList();
+
+      statusMessage = 'Found ${videos.length} videos in the playlist.';
+      isLoading = false;
+    });
+  } catch (e) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('Error fetching playlist: $e')),
+    );
+    setState(() {
+      isLoading = false;
+      statusMessage = '';
+    });
+  }
+}
+
+
+  Future<void> _downloadAudio1(String videoId, String savePath) async {
+    final yt = YoutubeExplode();
+
+    try {
+      // Get the video
+      final video = await yt.videos.get(videoId);
+
+      // Fetch the audio streams
+      final manifest = await yt.videos.streamsClient.getManifest(videoId);
+      final audioStream = manifest.audioOnly.withHighestBitrate(); // Get the highest-quality audio
+
+      // Open the file for writing
+      final file = File(savePath);
+      final fileStream = file.openWrite();
+
+      // Download the audio stream
+      final stream = yt.videos.streamsClient.get(audioStream);
+
+      await stream.pipe(fileStream);
+      await fileStream.flush();
+      await fileStream.close();
+
+      print('Audio downloaded successfully to $savePath');
+    } catch (e) {
+      print('Error downloading audio: $e');
+    } finally {
+      yt.close();
+    }
+  }
+
+  Future<void> _fetchAudioPlaylist(String playlistUrl) async {
+    setState(() {
+      isLoading = true;
+      statusMessage = 'Fetching playlist details...';
+      _tasks.clear(); // Clear previous tasks
+    });
+
+    final yt = YoutubeExplode();
+
+    try {
+      // Get the playlist
+      final playlist = await yt.playlists.get(playlistUrl);
+
+      // Fetch videos in the playlist
+      final videos = await yt.playlists.getVideos(playlist.id).toList();
+
+      // Create download tasks
+      for (final video in videos) {
+         final Directory downloadsDir =
+            Directory('/snapYT');
+             if (!downloadsDir.existsSync()) {
+          downloadsDir.createSync(recursive: true);
+        }
+        final savePath = '${downloadsDir.path}/${_sanitizeFileName(video.title)}.mp3'; // Specify a valid save path
+
+        await _downloadAudio1(video.id.value, savePath);
+
+        setState(() {
+          _tasks.add(_DownloadTask(
+            video.title,
+            video.id.toString(),
+            100.0, // Assuming download completes successfully
+            'Completed',
+            audioOnly: true,
+          ));
+        });
+      }
+
+      setState(() {
+        statusMessage = 'Downloaded audio for ${videos.length} videos.';
+        isLoading = false;
+      });
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error fetching playlist: $e')),
+      );
+      setState(() {
+        isLoading = false;
+        statusMessage = '';
+      });
+    } finally {
+      yt.close();
+    }
+  }
+
+  Future<void> _downloadAudio(String videoId, _DownloadTask? task) async {
+    if (isMobile()) {
+      try {
+        final Directory downloadsDir =
+            Directory('/storage/emulated/0/Download');
+        if (!downloadsDir.existsSync()) {
+          downloadsDir.createSync(recursive: true);
+        }
+
+        final video = await yt.videos.get(videoId);
+        final manifest = await yt.videos.streamsClient.getManifest(video.id);
+
+        if (manifest.audioOnly.isEmpty) {
+          throw Exception('No audio streams available for download.');
+        }
+
+        final streamInfo = manifest.audioOnly.withHighestBitrate();
+        final filePath =
+            '${downloadsDir.path}/${_sanitizeFileName(video.title)}.mp3';
+        final file = File(filePath);
+        final stream = yt.videos.streamsClient.get(streamInfo);
+
+        final totalBytes = streamInfo.size.totalBytes;
+        var downloadedBytes = 0;
+        final output = file.openWrite();
+
+        if (task != null) {
+          task.status = 'Downloading';
+        }
+
+        setState(() {
+          isDownloading = true;
+        });
+
+        await for (final chunk in stream) {
+          if (_isCanceled) break;
+
+          downloadedBytes += chunk.length;
+          output.add(chunk);
+
+          final progress = downloadedBytes / totalBytes;
+
+          if (task != null) {
+            setState(() {
+              task.progress = progress;
+              task.status =
+                  'Downloading ${(progress * 100).toStringAsFixed(1)}%';
+            });
+          } else {
+            setState(() {
+              statusMessage =
+                  'Downloading ${(progress * 100).toStringAsFixed(1)}%';
+            });
+          }
+        }
+
+        await output.flush();
+        await output.close();
+
+        if (!_isCanceled) {
+          if (task != null) {
+            task.status = 'Completed';
+          } else {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text('Downloaded audio: ${video.title}')),
+            );
+          }
+        }
+        setState(() {
+          isDownloading = false;
+        });
+      } catch (e) {
+        if (task != null) {
+          task.status = 'Error';
+        }
+        setState(() {
+          isDownloading = false;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error downloading audio: $e')),
+        );
+      }
+    }
+
+    if (isDesktop()) {
+      try {
+        final Directory downloadsDir = Directory('/snapYT');
+        if (!downloadsDir.existsSync()) {
+          downloadsDir.createSync(recursive: true);
+        }
+
+        final video = await yt.videos.get(videoId);
+        final manifest = await yt.videos.streamsClient.getManifest(video.id);
+
+        if (manifest.audioOnly.isEmpty) {
+          throw Exception('No audio streams available for download.');
+        }
+
+        final streamInfo = manifest.audioOnly.withHighestBitrate();
+        final filePath =
+            '${downloadsDir.path}/${_sanitizeFileName(video.title)}.mp3';
+        final file = File(filePath);
+        final stream = yt.videos.streamsClient.get(streamInfo);
+
+        final totalBytes = streamInfo.size.totalBytes;
+        var downloadedBytes = 0;
+        final output = file.openWrite();
+
+        if (task != null) {
+          task.status = 'Downloading';
+        }
+
+        setState(() {
+          isDownloading = true;
+        });
+
+        await for (final chunk in stream) {
+          if (_isCanceled) break;
+
+          downloadedBytes += chunk.length;
+          output.add(chunk);
+
+          final progress = downloadedBytes / totalBytes;
+
+          if (task != null) {
+            setState(() {
+              task.progress = progress;
+              task.status =
+                  'Downloading ${(progress * 100).toStringAsFixed(1)}%';
+            });
+          } else {
+            setState(() {
+              statusMessage =
+                  'Downloading ${(progress * 100).toStringAsFixed(1)}%';
+            });
+          }
+        }
+
+        await output.flush();
+        await output.close();
+
+        if (!_isCanceled) {
+          if (task != null) {
+            task.status = 'Completed';
+          } else {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text('Downloaded audio: ${video.title}')),
+            );
+          }
+        }
+        setState(() {
+          isDownloading = false;
+        });
+      } catch (e) {
+        if (task != null) {
+          task.status = 'Error';
+        }
+        setState(() {
+          isDownloading = false;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error downloading audio: $e')),
+        );
+      }
+    }
+  }
+
+  Future<void> _downloadVideo(String videoId, _DownloadTask? task) async {
+    if (isMobile()) {
+      try {
+        final Directory downloadsDir =
+            Directory('/storage/emulated/0/Download');
+        if (!downloadsDir.existsSync()) {
+          downloadsDir.createSync(recursive: true);
+        }
+
+        final video = await yt.videos.get(videoId);
+        final manifest = await yt.videos.streamsClient.getManifest(video.id);
+
+        if (manifest.videoOnly.isEmpty) {
+          throw Exception('No video streams available for download.');
+        }
+
+        final streamInfo = manifest.videoOnly.withHighestBitrate();
+        final filePath =
+            '${downloadsDir.path}/${_sanitizeFileName(video.title)}.mp4';
+        final file = File(filePath);
+        final stream = yt.videos.streamsClient.get(streamInfo);
+
+        final totalBytes = streamInfo.size.totalBytes;
+        var downloadedBytes = 0;
+        final output = file.openWrite();
+
+        if (task != null) {
+          task.status = 'Downloading';
+        }
+
+        setState(() {
+          isDownloading = true;
+        });
+
+        await for (final chunk in stream) {
+          if (_isCanceled) break;
+
+          downloadedBytes += chunk.length;
+          output.add(chunk);
+
+          final progress = downloadedBytes / totalBytes;
+
+          if (task != null) {
+            setState(() {
+              task.progress = progress;
+              task.status =
+                  'Downloading ${(progress * 100).toStringAsFixed(1)}%';
+            });
+          } else {
+            setState(() {
+              statusMessage =
+                  'Downloading ${(progress * 100).toStringAsFixed(1)}%';
+            });
+          }
+        }
+
+        await output.flush();
+        await output.close();
+
+        if (!_isCanceled) {
+          if (task != null) {
+            task.status = 'Completed';
+          } else {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text('Downloaded video: ${video.title}')),
+            );
+          }
+        }
+        setState(() {
+          isDownloading = false;
+        });
+      } catch (e) {
+        if (task != null) {
+          task.status = 'Error';
+        }
+        setState(() {
+          isDownloading = false;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error downloading video: $e')),
+        );
+      }
+    }
+
+    if (isDesktop()) {
+      try {
+        final Directory downloadsDir = Directory('/snapYT');
+        if (!downloadsDir.existsSync()) {
+          downloadsDir.createSync(recursive: true);
+        }
+
+        final video = await yt.videos.get(videoId);
+        final manifest = await yt.videos.streamsClient.getManifest(video.id);
+
+        if (manifest.videoOnly.isEmpty) {
+          throw Exception('No video streams available for download.');
+        }
+
+        final streamInfo = manifest.videoOnly.withHighestBitrate();
+        final filePath =
+            '${downloadsDir.path}/${_sanitizeFileName(video.title)}.mp4';
+        final file = File(filePath);
+        final stream = yt.videos.streamsClient.get(streamInfo);
+
+        final totalBytes = streamInfo.size.totalBytes;
+        var downloadedBytes = 0;
+        final output = file.openWrite();
+
+        if (task != null) {
+          task.status = 'Downloading';
+        }
+
+        setState(() {
+          isDownloading = true;
+        });
+
+        await for (final chunk in stream) {
+          if (_isCanceled) break;
+
+          downloadedBytes += chunk.length;
+          output.add(chunk);
+
+          final progress = downloadedBytes / totalBytes;
+
+          if (task != null) {
+            setState(() {
+              task.progress = progress;
+              task.status =
+                  'Downloading ${(progress * 100).toStringAsFixed(1)}%';
+            });
+          } else {
+            setState(() {
+              statusMessage =
+                  'Downloading ${(progress * 100).toStringAsFixed(1)}%';
+            });
+          }
+        }
+
+        await output.flush();
+        await output.close();
+
+        if (!_isCanceled) {
+          if (task != null) {
+            task.status = 'Completed';
+          } else {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text('Downloaded video: ${video.title}')),
+            );
+          }
+        }
+        setState(() {
+          isDownloading = false;
+        });
+      } catch (e) {
+        if (task != null) {
+          task.status = 'Error';
+        }
+        setState(() {
+          isDownloading = false;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error downloading video: $e')),
+        );
+      }
+    }
+  }
+
+  String _sanitizeFileName(String title) {
+    return title.replaceAll(RegExp(r'[\/:*?"<>|]'), '_');
+  }
+  
+  // Check if the platform is a mobile platform
+  bool isMobile() {
+    return Platform.isAndroid || Platform.isIOS;
+  }
+
+  // Check if the platform is a desktop platform
+  bool isDesktop() {
+    return Platform.isMacOS || Platform.isWindows || Platform.isLinux;
+  }
+  
+  @override
+  Widget build(BuildContext context) {
+    
+       return Scaffold(
+      appBar: AppBar(
+        title: const Text('YouTube Downloader'),
+      ),
+      body: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          children: [
+            TextField(
+              controller: _controller,
+              decoration: InputDecoration(
+                suffixIcon: IconButton(
+                    onPressed: () {
+                      _controller.clear();
+                    },
+                    icon: const Icon(Icons.cancel_outlined)),
+                labelText: 'Enter YouTube URL',
+                border: const OutlineInputBorder(),
+              ),
+            ),
+            const SizedBox(height: 20),
+            DropdownButton<String>(
+              value: _downloadType,
+              onChanged: (String? newValue) {
+                setState(() {
+                  _downloadType = newValue!;
+                  if (_downloadType != 'Playlist') {
+                    _tasks.clear(); // Clear tasks when switching to video/audio
+                  }
+                });
+              },
+              items: <String>['Video', 'Audio', 'Playlist','Audio Playlist']
+                  .map<DropdownMenuItem<String>>((String value) {
+                return DropdownMenuItem<String>(
+                  value: value,
+                  child: Text(value),
+                );
+              }).toList(),
+            ),
+            const SizedBox(height: 20),
+            ElevatedButton(
+              onPressed: () async {
+                if (!await _requestPermissions()) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                        content: Text('Storage permission not granted')),
+                  );
+                  return;
+                }
+
+                var url = _controller.text.trim();
+                if (url.isNotEmpty) {
+                  if (_downloadType == 'Playlist') {
+                    _fetchPlaylist(url);
+                  } 
+                 else if (_downloadType == 'Audio Playlist') {
+                    _fetchAudioPlaylist(url);
+                  } 
+                  else if (_downloadType == 'Audio') {
+                    _downloadAudio(url, null);
+                  } else {
+                    _downloadVideo(url, null);
+                  }
+                }
+              },
+              child: const Text('Start'),
+            ),
+            const SizedBox(height: 20),
+            if (_tasks.isNotEmpty)
+              Expanded(
+                child: ListView.builder(
+                  itemCount: _tasks.length,
+                  itemBuilder: (context, index) {
+                    final task = _tasks[index];
+                    return ListTile(
+                      title: Text(task.title),
+                      subtitle: Text(task.status),
+                      trailing: task.status.contains('Downloading')
+                          ? CircularProgressIndicator(value: task.progress)
+                          : null,
+                    );
+                  },
+                ),
+              ),
+            if (_tasks.isNotEmpty) ...[
+              ElevatedButton(
+                onPressed: () async {
+                  if (!await _requestPermissions()) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                          content: Text('Storage permission not granted')),
+                    );
+                    return;
+                  }
+                  setState(() {
+                    _isCanceled = false;
+                  });
+                  for (final task in _tasks) {
+                    if (_isCanceled) break;
+                    if (_downloadType == 'Audio') {
+                      await _downloadAudio(task.id, task);
+                    } else {
+                      await _downloadVideo(task.id, task);
+                    }
+                  }
+                  if (!_isCanceled) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                          content: Text('Playlist download completed!')),
+                    );
+                  }
+                },
+                child: const Text('Download All'),
+              ),
+              const SizedBox(height: 10),
+              ElevatedButton(
+                onPressed: () {
+                  setState(() {
+                    _isCanceled = true;
+                    for (var task in _tasks) {
+                      if (task.status == 'Downloading') {
+                        task.status = 'Canceled';
+                      }
+                    }
+                  });
+                },
+                child: const Text('Cancel All'),
+              ),
+            ],
+            if (isDownloading) ...[
+              const CircularProgressIndicator(),
+              Text(statusMessage),
+            ]
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _DownloadTask {
+  final String title;
+  final String id;
+  double progress;
+  String status;
+  final bool audioOnly;
+
+  _DownloadTask(
+    this.title,
+    this.id,
+    this.progress,
+    this.status, {
+    this.audioOnly = false,
+  });
+}
