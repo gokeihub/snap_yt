@@ -1,6 +1,6 @@
 {
-    "name": "yt_download",
-    "short_name": "yt_download",
+    "name": "snap_yt",
+    "short_name": "snap_yt",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#0175C2",

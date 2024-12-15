@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:quick_actions/quick_actions.dart';
-import 'package:yt_download/page/video_download/video_download.dart';
-import 'package:yt_download/page/youtube_download/youtube_download.dart';
 import '../page/setting/screen/setting.dart';
+import '../page/video_download/video_download.dart';
+import '../page/youtube_download/youtube_download.dart';
 
 const QuickActions quickActions = QuickActions();
 
@@ -15,7 +15,7 @@ initializeAction(BuildContext context) {
         return;
       case 'Video Download':
         Navigator.of(context).push(MaterialPageRoute(
-            builder: (builder) => const VideoDownloaderScreen()));
+            builder: (builder) => const VideoDownloaderScreen(),),);
         return;
       default:
         Navigator.of(context).push(
@@ -33,7 +33,7 @@ initializeAction(BuildContext context) {
       const ShortcutItem(
           type: 'Video Download',
           localizedTitle: 'Video Download',
-          icon: 'person'),
+          icon: 'video'),
       const ShortcutItem(
           type: 'Setting', localizedTitle: 'Setting', icon: 'settings'),
     ],

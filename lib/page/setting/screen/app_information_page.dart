@@ -1,8 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:package_info_plus/package_info_plus.dart';
-
-import '../widgets/bookify_ads.dart';
-// import 'package:startapp_sdk/startapp.dart';
+import '../widgets/snapyt_ads.dart';
 
 class AppInformationPage extends StatefulWidget {
   const AppInformationPage({super.key});
@@ -15,23 +13,12 @@ class _AppInformationPageState extends State<AppInformationPage> {
   String version = "";
   String appName = "";
   String packageName = "";
-  // var startApp = StartAppSdk();
-  // StartAppBannerAd? bannerAds;
 
-  // loadBannerAds() {
-  //   //! startApp.setTestAdsEnabled(true);
-  //   startApp.loadBannerAd(StartAppBannerType.BANNER).then((value) {
-  //     setState(() {
-  //       bannerAds = value;
-  //     });
-  //   });
-  // }
 
   @override
   void initState() {
     super.initState();
     _getAppVersion();
-    // loadBannerAds();
   }
 
   Future<void> _getAppVersion() async {
@@ -53,9 +40,6 @@ class _AppInformationPageState extends State<AppInformationPage> {
       appBar: AppBar(
         title: const Text("App Information"),
       ),
-      // bottomNavigationBar: bannerAds != null
-      //     ? SizedBox(height: 60, child: StartAppBanner(bannerAds!))
-      //     : const SizedBox(),
       bottomNavigationBar: const BookifyAds(
         apiUrl: 'https://gokeihub.github.io/bookify_api/ads/bookify_ads_1.json',
       ),

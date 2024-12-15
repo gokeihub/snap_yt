@@ -3,10 +3,9 @@
 import 'package:flutter/material.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:provider/provider.dart';
-// import 'package:test/page/setting/screen/missing_story.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../../provider/theme_provider.dart';
-import '../widgets/bookify_ads.dart';
+import '../widgets/snapyt_ads.dart';
 import 'snapyt_about.dart';
 import 'app_information_page.dart';
 import 'change_log_page.dart';
@@ -19,25 +18,9 @@ class SettingPage extends StatefulWidget {
 }
 
 class _SettingPageState extends State<SettingPage> {
-  // var startApp = StartAppSdk();
-  // StartAppBannerAd? bannerAds;
-
-//   loadBannerAds() {
-//   try {
-//     startApp.loadBannerAd(StartAppBannerType.BANNER).then((value) {
-//       setState(() {
-//         bannerAds = value;
-//       });
-//     });
-//   } catch (e) {
-//     // print("Failed to load StartApp banner ad: $e");
-//   }
-// }
-
   @override
   void initState() {
     super.initState();
-    // loadBannerAds();
   }
 
   @override
@@ -47,9 +30,6 @@ class _SettingPageState extends State<SettingPage> {
       appBar: AppBar(
         title: const Text("Setting"),
       ),
-      // bottomNavigationBar: bannerAds != null
-      //     ? SizedBox(height: 60, child: StartAppBanner(bannerAds!))
-      //     : const SizedBox(),
       body: SingleChildScrollView(
         child: Column(
           children: [
@@ -103,7 +83,7 @@ class _SettingPageState extends State<SettingPage> {
                     ),
                   );
                 },
-                title: const Text('About Bookify'),
+                title: const Text('About SnapYT'),
                 trailing: const Icon(Icons.info_rounded),
               ),
             ),
@@ -111,7 +91,7 @@ class _SettingPageState extends State<SettingPage> {
               child: ListTile(
                 onTap: () async {
                   String privacyUrl =
-                      'https://sites.google.com/view/bookify-audio/home';
+                      'https://sites.google.com/view/snapyt-privacy/home';
                   final Uri url = Uri.parse(privacyUrl);
                   if (await canLaunch(url.toString())) {
                     await launch(url.toString());
@@ -127,11 +107,10 @@ class _SettingPageState extends State<SettingPage> {
               apiUrl:
                   'https://gokeihub.github.io/bookify_api/ads/setting_2.json',
             ),
-
             Card(
               child: ListTile(
                 onTap: () async {
-                  String privacyUrl = 'https://t.me/+iCD-EPh5ye1iM2Q1';
+                  String privacyUrl = 'https://t.me/gokeihub';
                   final Uri url = Uri.parse(privacyUrl);
                   if (await canLaunch(url.toString())) {
                     await launch(url.toString());
@@ -143,25 +122,11 @@ class _SettingPageState extends State<SettingPage> {
                 trailing: const Icon(Icons.telegram),
               ),
             ),
-            // Card(
-            //   child: ListTile(
-            //     onTap: () {
-            //       Navigator.of(context).push(
-            //         MaterialPageRoute(
-            //           builder: (b) => const MissingStory(),
-            //         ),
-            //       );
-            //     },
-            //     title: const Text('Missing Story'),
-            //     trailing: const Icon(Icons.add),
-            //   ),
-            // ),
-
             Card(
               child: ListTile(
                 onTap: () async {
                   String termCondition =
-                      'https://sites.google.com/view/bookify-term/home';
+                      'https://sites.google.com/view/snapyt-term/home';
                   final Uri url = Uri.parse(termCondition);
                   if (await canLaunch(url.toString())) {
                     await launch(url.toString());
@@ -196,7 +161,7 @@ class _SettingPageState extends State<SettingPage> {
               child: ListTile(
                 onTap: () async {
                   String issuesUrl =
-                      'https://github.com/gokeihub/bookify_audio/issues';
+                      'https://github.com/gokeihub/snap_yt/issues';
                   final Uri url = Uri.parse(issuesUrl);
                   if (await canLaunch(url.toString())) {
                     await launch(url.toString());

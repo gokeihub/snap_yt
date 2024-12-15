@@ -8,12 +8,34 @@ import 'dart:convert';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:http/http.dart' as http;
-import 'package:yt_download/page/setting/screen/setting.dart';
-import 'package:yt_download/page/video_download/video_download.dart';
-import 'package:yt_download/page/youtube_download/youtube_download.dart';
+// import 'package:window_manager/window_manager.dart';
+import 'page/setting/screen/setting.dart';
+import 'page/video_download/video_download.dart';
+import 'page/youtube_download/youtube_download.dart';
 import 'provider/theme_provider.dart';
+// import 'dart:io' show Platform;
 
-void main() {
+void main()  {
+  // WidgetsFlutterBinding.ensureInitialized();
+  // await windowManager.ensureInitialized();
+
+  // if (Platform.isWindows || Platform.isLinux || Platform.isMacOS) {
+  //   await windowManager.ensureInitialized();
+
+  //   WindowOptions windowOptions = const WindowOptions(
+  //     size: Size(700, 700),
+  //     center: true,
+  //     backgroundColor: Colors.transparent,
+  //     skipTaskbar: true,
+  //     // titleBarStyle: TitleBarStyle.hidden,
+  //   );
+
+  //   await windowManager.waitUntilReadyToShow(windowOptions, () async {
+  //     await windowManager.show();
+  //     await windowManager.focus();
+  //   });
+  // }
+
   runApp(
     MultiProvider(
       providers: [
@@ -124,8 +146,8 @@ class StartPageState extends State<StartPage> {
 
   Future<void> checkForUpdate() async {
     try {
-      final response = await http.get(
-          Uri.parse('https://gokeihub.github.io/bookify_api/app_update.json'));
+      final response = await http.get(Uri.parse(
+          'https://gokeihub.github.io/bookify_api/snap_yt_update.json'));
 
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
@@ -159,7 +181,7 @@ class StartPageState extends State<StartPage> {
           ),
           TextButton(
             onPressed: () async {
-              const String appUpdateUrl = 'https://gokeihub.com/snapYT';
+              const String appUpdateUrl = 'https://gokeihub.com/snapyt';
 
               final Uri url = Uri.parse(appUpdateUrl);
 
@@ -184,23 +206,69 @@ class StartPageState extends State<StartPage> {
 
   final List<IconData> _icons = [
     Icons.home,
-    Icons.person,
+    Icons.download,
     Icons.settings,
   ];
 
   final List<String> _titles = [
     'Home',
-    'Person',
+    'Video',
     'Settings',
   ];
 
   @override
   Widget build(BuildContext context) {
-    double displayWidth = MediaQuery.of(context).size.width;
     final theme = Theme.of(context);
-    return Scaffold(
-      body: _pages[currentIndex],
-      bottomNavigationBar: buildBottomNavigationBar(displayWidth, theme),
+    bool isLargeScreen = MediaQuery.of(context).size.width > 500;
+
+    return SafeArea(
+      child: Scaffold(
+        drawer: isLargeScreen ? null : buildDrawer(theme),
+        body: isLargeScreen
+            ? Row(
+                children: [
+                  SizedBox(
+                    width: 150,
+                    child: buildSideNavigation(theme),
+                  ),
+                  const VerticalDivider(width: 1),
+                  Expanded(
+                    child: _pages[currentIndex],
+                  ),
+                ],
+              )
+            : _pages[currentIndex],
+        bottomNavigationBar: isLargeScreen
+            ? null
+            : buildBottomNavigationBar(MediaQuery.of(context).size.width, theme),
+      ),
+    );
+  }
+
+  Widget buildSideNavigation(ThemeData theme) {
+    return Container(
+      color: theme.brightness == Brightness.dark ? Colors.black : Colors.white,
+      child: Column(
+        children: List.generate(_icons.length, (index) {
+          return ListTile(
+            selected: currentIndex == index,
+            selectedColor: theme.primaryColor,
+            leading: Icon(_icons[index]),
+            title: Text(_titles[index]),
+            onTap: () {
+              setState(() {
+                currentIndex = index;
+              });
+            },
+          );
+        }),
+      ),
+    );
+  }
+
+  Widget buildDrawer(ThemeData theme) {
+    return Drawer(
+      child: buildSideNavigation(theme),
     );
   }
 

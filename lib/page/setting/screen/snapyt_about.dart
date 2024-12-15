@@ -11,7 +11,7 @@ class SnapYTAbout extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text("About Bookify"),
+        title: const Text("About SnapYT"),
       ),
       body: Center(
         child: Padding(
@@ -25,25 +25,25 @@ class SnapYTAbout extends StatelessWidget {
                     height: 200,
                     width: 200,
                     child: CachedNetworkImage(
-                      imageUrl: "https://i.postimg.cc/KYHd794P/app-icon.jpg",
+                      imageUrl: "https://i.postimg.cc/pXbs1jD8/applogo.webp",
                     ),
                   ),
                 ),
                 const SizedBox(height: 15),
                 const Text(
-                  "Bookify Audio",
+                  "SnapYT",
                   style: TextStyle(
                     fontSize: 25,
                     fontWeight: FontWeight.bold,
                   ),
                 ),
-                const Text("© 2024 Md Apon Ahmed"),
+                const Text("© 2024 Gokeihub"),
                 const SizedBox(height: 15),
                 const TextButtonWidget(
                     text: "Gokei Hub", url: 'https://gokeihub.com/'),
                 const SizedBox(height: 15),
                 const Text(
-                  "Bookify Audio is free, open-source app where you Play Audio Book you need. Which you can use very easily",
+                  "SnapYT is an open-source YouTube video downloader application built using the Flutter framework. Designed for simplicity and performance, SnapYT allows users to save YouTube videos and access them offline anytime. It is open-source and freely available, encouraging developers to contribute and improve the project.",
                 ),
                 const SizedBox(height: 15),
                 const Align(
@@ -57,7 +57,7 @@ class SnapYTAbout extends StatelessWidget {
                 ),
                 const Row(
                   children: [
-                    Text("Md Apon Ahmed"),
+                    Text("Gokeihub"),
                     TextButtonWidget(
                       text: "gokeihub",
                       url: 'https://github.com/gokeihub',
@@ -76,21 +76,18 @@ class SnapYTAbout extends StatelessWidget {
                       ),
                       TextButtonWidget(
                         text: "Source Code (Github)",
-                        url: 'https://github.com/gokeihub/bookify_audio',
+                        url: 'https://github.com/gokeihub/snap_yt',
                       ),
-                       TextButtonWidget(
-                        text: "Bookify Audio Api",
-                        url: 'https://github.com/gokeihub/bookify_api',
-                      ),
+                     
                       TextButtonWidget(
                         text: "License",
                         url:
-                            'https://github.com/gokeihub/bookify_audio/blob/main/LICENSE',
+                            'https://github.com/gokeihub/snap_yt/blob/main/LICENSE',
                       ),
                       TextButtonWidget(
                         text: "CHANGELOG",
                         url:
-                            'https://github.com/gokeihub/bookify_audio/blob/main/CHANGELOG.md',
+                            'https://github.com/gokeihub/snap_yt/blob/main/CHANGELOG.md',
                       ),
                     ],
                   ),

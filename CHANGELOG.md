@@ -4,4 +4,4 @@
 
 ## 1.0.1
 
- - Bug Fix
+ - production ready

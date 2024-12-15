@@ -52,8 +52,8 @@ class YoutubeDownloaderState extends State<YoutubeDownloader> {
 
       setState(() {
         _tasks = videos
-            .map((video) =>
-                _DownloadTask(video.title, video.id.toString(), 0.0, 'Pending'))
+            .map((video) => _DownloadTask(
+                video.title, video.id.value.toString(), 0.0, 'Pending'))
             .toList();
         statusMessage = 'Found ${videos.length} videos in the playlist.';
         isLoading = false;
@@ -104,7 +104,13 @@ class YoutubeDownloaderState extends State<YoutubeDownloader> {
       final videos = await yt.playlists.getVideos(playlist.id).toList();
 
       for (final video in videos) {
-        final Directory downloadsDir = Directory('/snapYT');
+        var downloadsDir = Directory('/storage/emulated/0/Download/AudioPlaylist');
+        if (isMobile()) {
+          downloadsDir = Directory('/storage/emulated/0/Download/AudioPlaylist');
+        } else if (isDesktop()) {
+          downloadsDir = Directory('/snapYT/AudioPlaylist');
+        }
+
         if (!downloadsDir.existsSync()) {
           downloadsDir.createSync(recursive: true);
         }
@@ -142,11 +148,11 @@ class YoutubeDownloaderState extends State<YoutubeDownloader> {
   }
 
   Future<void> _downloadAudio(String videoId, _DownloadTask? task) async {
-    var downloadsDir = Directory('/storage/emulated/0/Download');
+    var downloadsDir = Directory('/storage/emulated/0/Download/YoutubeAudio');
     if (isMobile()) {
-      downloadsDir = Directory('/storage/emulated/0/Download');
+      downloadsDir = Directory('/storage/emulated/0/Download/YoutubeAudio');
     } else if (isDesktop()) {
-      downloadsDir = Directory('/snapYT');
+      downloadsDir = Directory('/snapYT/YoutubeAudio');
     }
 
     try {
@@ -229,11 +235,11 @@ class YoutubeDownloaderState extends State<YoutubeDownloader> {
   }
 
   Future<void> _downloadVideo(String videoId, _DownloadTask? task) async {
-    var downloadsDir = Directory('/storage/emulated/0/Download');
+    var downloadsDir = Directory('/storage/emulated/0/Download/YoutubeVideo');
     if (isMobile()) {
-      downloadsDir = Directory('/storage/emulated/0/Download');
+      downloadsDir = Directory('/storage/emulated/0/Download/YoutubeVideo');
     } else if (isDesktop()) {
-      downloadsDir = Directory('/snapYT');
+      downloadsDir = Directory('/snapYT/YoutubeVideo');
     }
     try {
       if (!downloadsDir.existsSync()) {
@@ -241,7 +247,15 @@ class YoutubeDownloaderState extends State<YoutubeDownloader> {
       }
 
       final video = await yt.videos.get(videoId);
-      final manifest = await yt.videos.streamsClient.getManifest(video.id);
+
+      // Use `ytClients` to fetch the manifest
+      final manifest = await yt.videos.streams.getManifest(
+        video.id.value,
+        ytClients: [
+          YoutubeApiClient.safari,
+          YoutubeApiClient.androidVr,
+        ],
+      );
 
       if (manifest.muxed.isEmpty) {
         throw Exception('No video streams available for download.');
@@ -251,7 +265,102 @@ class YoutubeDownloaderState extends State<YoutubeDownloader> {
       final filePath =
           '${downloadsDir.path}/${_sanitizeFileName(video.title)}.mp4';
       final file = File(filePath);
-      final stream = yt.videos.streamsClient.get(streamInfo);
+      final stream = yt.videos.streams.get(streamInfo);
+
+      final totalBytes = streamInfo.size.totalBytes;
+      var downloadedBytes = 0;
+      final output = file.openWrite();
+
+      if (task != null) {
+        task.status = 'Downloading';
+      }
+
+      setState(() {
+        isDownloading = true;
+      });
+
+      await for (final chunk in stream) {
+        if (_isCanceled) break;
+
+        downloadedBytes += chunk.length;
+        output.add(chunk);
+
+        final progress = downloadedBytes / totalBytes;
+
+        if (task != null) {
+          setState(() {
+            task.progress = progress;
+            task.status = 'Downloading ${(progress * 100).toStringAsFixed(1)}%';
+          });
+        } else {
+          setState(() {
+            statusMessage =
+                'Downloading ${(progress * 100).toStringAsFixed(1)}%';
+          });
+        }
+      }
+
+      await output.flush();
+      await output.close();
+
+      if (!_isCanceled) {
+        if (task != null) {
+          task.status = 'Completed';
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Downloaded video: ${video.title}')),
+          );
+        }
+      }
+      setState(() {
+        isDownloading = false;
+      });
+    } catch (e) {
+      if (task != null) {
+        task.status = 'Error';
+      }
+      setState(() {
+        isDownloading = false;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error downloading video: $e')),
+      );
+    }
+  }
+
+
+   Future<void> _downloadPlaylistVideo(String videoId, _DownloadTask? task) async {
+    var downloadsDir = Directory('/storage/emulated/0/Download/YoutubePlaylistVideo');
+    if (isMobile()) {
+      downloadsDir = Directory('/storage/emulated/0/Download/YoutubePlaylistVideo');
+    } else if (isDesktop()) {
+      downloadsDir = Directory('/snapYT/YoutubePlaylistVideo');
+    }
+    try {
+      if (!downloadsDir.existsSync()) {
+        downloadsDir.createSync(recursive: true);
+      }
+
+      final video = await yt.videos.get(videoId);
+
+      // Use `ytClients` to fetch the manifest
+      final manifest = await yt.videos.streams.getManifest(
+        video.id.value,
+        ytClients: [
+          YoutubeApiClient.safari,
+          YoutubeApiClient.androidVr,
+        ],
+      );
+
+      if (manifest.muxed.isEmpty) {
+        throw Exception('No video streams available for download.');
+      }
+
+      final streamInfo = manifest.muxed.withHighestBitrate();
+      final filePath =
+          '${downloadsDir.path}/${_sanitizeFileName(video.title)}.mp4';
+      final file = File(filePath);
+      final stream = yt.videos.streams.get(streamInfo);
 
       final totalBytes = streamInfo.size.totalBytes;
       var downloadedBytes = 0;
@@ -453,7 +562,7 @@ class YoutubeDownloaderState extends State<YoutubeDownloader> {
                     if (_downloadType == 'Audio') {
                       await _downloadAudio(task.id, task);
                     } else {
-                      await _downloadVideo(task.id, task);
+                      await _downloadPlaylistVideo(task.id, task);
                     }
                   }
                   if (!_isCanceled) {

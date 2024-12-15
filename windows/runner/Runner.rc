@@ -90,12 +90,12 @@ BEGIN
         BLOCK "040904e4"
         BEGIN
             VALUE "CompanyName", "com.example" "\0"
-            VALUE "FileDescription", "yt_download" "\0"
+            VALUE "FileDescription", "snap_yt" "\0"
             VALUE "FileVersion", VERSION_AS_STRING "\0"
-            VALUE "InternalName", "yt_download" "\0"
+            VALUE "InternalName", "snap_yt" "\0"
             VALUE "LegalCopyright", "Copyright (C) 2024 com.example. All rights reserved." "\0"
-            VALUE "OriginalFilename", "yt_download.exe" "\0"
-            VALUE "ProductName", "yt_download" "\0"
+            VALUE "OriginalFilename", "snap_yt.exe" "\0"
+            VALUE "ProductName", "snap_yt" "\0"
             VALUE "ProductVersion", VERSION_AS_STRING "\0"
         END
     END
