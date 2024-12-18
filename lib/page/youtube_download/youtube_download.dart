@@ -104,9 +104,9 @@ class YoutubeDownloaderState extends State<YoutubeDownloader> {
       final videos = await yt.playlists.getVideos(playlist.id).toList();
 
       for (final video in videos) {
-        var downloadsDir = Directory('/storage/emulated/0/Download/AudioPlaylist');
+        var downloadsDir = Directory('/storage/emulated/0/Download/SnapYT/AudioPlaylist');
         if (isMobile()) {
-          downloadsDir = Directory('/storage/emulated/0/Download/AudioPlaylist');
+          downloadsDir = Directory('/storage/emulated/0/Download/SnapYT/AudioPlaylist');
         } else if (isDesktop()) {
           downloadsDir = Directory('/snapYT/AudioPlaylist');
         }
@@ -148,9 +148,9 @@ class YoutubeDownloaderState extends State<YoutubeDownloader> {
   }
 
   Future<void> _downloadAudio(String videoId, _DownloadTask? task) async {
-    var downloadsDir = Directory('/storage/emulated/0/Download/YoutubeAudio');
+    var downloadsDir = Directory('/storage/emulated/0/Download/SnapYT/YoutubeAudio');
     if (isMobile()) {
-      downloadsDir = Directory('/storage/emulated/0/Download/YoutubeAudio');
+      downloadsDir = Directory('/storage/emulated/0/Download/SnapYT/YoutubeAudio');
     } else if (isDesktop()) {
       downloadsDir = Directory('/snapYT/YoutubeAudio');
     }
@@ -235,9 +235,9 @@ class YoutubeDownloaderState extends State<YoutubeDownloader> {
   }
 
   Future<void> _downloadVideo(String videoId, _DownloadTask? task) async {
-    var downloadsDir = Directory('/storage/emulated/0/Download/YoutubeVideo');
+    var downloadsDir = Directory('/storage/emulated/0/Download/SnapYT/YoutubeVideo');
     if (isMobile()) {
-      downloadsDir = Directory('/storage/emulated/0/Download/YoutubeVideo');
+      downloadsDir = Directory('/storage/emulated/0/Download/SnapYT/YoutubeVideo');
     } else if (isDesktop()) {
       downloadsDir = Directory('/snapYT/YoutubeVideo');
     }
@@ -330,9 +330,9 @@ class YoutubeDownloaderState extends State<YoutubeDownloader> {
 
 
    Future<void> _downloadPlaylistVideo(String videoId, _DownloadTask? task) async {
-    var downloadsDir = Directory('/storage/emulated/0/Download/YoutubePlaylistVideo');
+    var downloadsDir = Directory('/storage/emulated/0/Download/SnapYT/YoutubePlaylistVideo');
     if (isMobile()) {
-      downloadsDir = Directory('/storage/emulated/0/Download/YoutubePlaylistVideo');
+      downloadsDir = Directory('/storage/emulated/0/Download/SnapYT/YoutubePlaylistVideo');
     } else if (isDesktop()) {
       downloadsDir = Directory('/snapYT/YoutubePlaylistVideo');
     }

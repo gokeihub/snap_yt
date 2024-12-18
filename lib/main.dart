@@ -13,6 +13,7 @@ import 'page/setting/screen/setting.dart';
 import 'page/video_download/video_download.dart';
 import 'page/youtube_download/youtube_download.dart';
 import 'provider/theme_provider.dart';
+import 'youtube_serch/youtube_search.dart';
 // import 'dart:io' show Platform;
 
 void main()  {
@@ -64,7 +65,7 @@ class MyApp extends StatelessWidget {
         iconTheme: const IconThemeData(color: Colors.white70),
       ),
       themeMode: themeProvider.themeMode,
-      home: const SplashScreenPage(),
+      home: const YoutubeSearch(),
     );
   }
 }
