@@ -3,9 +3,12 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:klutter_platfrom_verify/klutter_platfrom_verify.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:youtube_explode_dart/youtube_explode_dart.dart';
+
+import '../page/video_download/video_download.dart';
 
 class YoutubeSearch extends StatefulWidget {
   const YoutubeSearch({super.key});
@@ -382,7 +385,8 @@ class YoutubeSearchState extends State<YoutubeSearch> {
     return Shortcuts(
       shortcuts: {
         LogicalKeySet(LogicalKeyboardKey.enter): SearchIntent(),
-        LogicalKeySet(LogicalKeyboardKey.control, LogicalKeyboardKey.keyX): CutIntent(),
+        LogicalKeySet(LogicalKeyboardKey.control, LogicalKeyboardKey.keyX):
+            CutIntent(),
       },
       child: Actions(
         actions: {
@@ -404,6 +408,14 @@ class YoutubeSearchState extends State<YoutubeSearch> {
         child: Scaffold(
           appBar: AppBar(
             title: const Text('YouTube Downloader'),
+            actions: [
+              IconButton(
+                  onPressed: () {
+                    Navigator.of(context).push(MaterialPageRoute(
+                        builder: (builder) => VideoDownloaderScreen()));
+                  },
+                  icon: Icon(FontAwesomeIcons.video))
+            ],
           ),
           body: Padding(
             padding: const EdgeInsets.all(16.0),
@@ -486,7 +498,8 @@ class YoutubeSearchState extends State<YoutubeSearch> {
                                       width: 24,
                                       height: 24,
                                       fit: BoxFit.cover,
-                                      errorBuilder: (context, error, stackTrace) {
+                                      errorBuilder:
+                                          (context, error, stackTrace) {
                                         return const Icon(
                                           Icons.person,
                                           size: 16,
@@ -499,7 +512,8 @@ class YoutubeSearchState extends State<YoutubeSearch> {
                                 const SizedBox(width: 8),
                                 Expanded(
                                   child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
                                     children: [
                                       Text(
                                         task.channelName,
@@ -519,8 +533,8 @@ class YoutubeSearchState extends State<YoutubeSearch> {
                                 if (!await _requestPermissions()) {
                                   ScaffoldMessenger.of(context).showSnackBar(
                                     const SnackBar(
-                                        content:
-                                            Text('Storage permission not granted')),
+                                        content: Text(
+                                            'Storage permission not granted')),
                                   );
                                   return;
                                 }
@@ -534,35 +548,35 @@ class YoutubeSearchState extends State<YoutubeSearch> {
                     ),
                   ),
                 if (_tasks.isNotEmpty) ...[
-                 Row(
-                  children: [
-                     Padding(
-                    padding: const EdgeInsets.all(4),
-                    child: ElevatedButton(
-                      onPressed: () {
-                        downloadAll();
-                      },
-                      child: const Text('Download All'),
-                    ),
+                  Row(
+                    children: [
+                      Padding(
+                        padding: const EdgeInsets.all(4),
+                        child: ElevatedButton(
+                          onPressed: () {
+                            downloadAll();
+                          },
+                          child: const Text('Download All'),
+                        ),
+                      ),
+                      Padding(
+                        padding: const EdgeInsets.all(4),
+                        child: ElevatedButton(
+                          onPressed: () {
+                            setState(() {
+                              _isCanceled = true;
+                              for (var task in _tasks) {
+                                if (task.status == 'Downloading') {
+                                  task.status = 'Canceled';
+                                }
+                              }
+                            });
+                          },
+                          child: const Text('Cancel All'),
+                        ),
+                      ),
+                    ],
                   ),
-                  Padding(
-                    padding: const EdgeInsets.all(4),
-                    child: ElevatedButton(
-                      onPressed: () {
-                        setState(() {
-                          _isCanceled = true;
-                          for (var task in _tasks) {
-                            if (task.status == 'Downloading') {
-                              task.status = 'Canceled';
-                            }
-                          }
-                        });
-                      },
-                      child: const Text('Cancel All'),
-                    ),
-                  ),
-                  ],
-                 ),
                 ],
                 if (isDownloading) ...[
                   const CircularProgressIndicator(),

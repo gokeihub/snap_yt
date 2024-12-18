@@ -65,7 +65,8 @@ class VideoDownloaderScreenState extends State<VideoDownloaderScreen> {
       // Save to the public Downloads folder
       final String fileName =
           "video_${DateTime.now().millisecondsSinceEpoch}.mp4";
-      final Directory downloadsDir = Directory('/storage/emulated/0/Download');
+      final Directory downloadsDir =
+          Directory('/storage/emulated/0/Download/SnapYT/VideoDownload');
       final File file = File('${downloadsDir.path}/$fileName');
 
       // Write the file
@@ -116,8 +117,8 @@ class VideoDownloaderScreenState extends State<VideoDownloaderScreen> {
           children: [
             TextField(
               controller: _urlController,
-              decoration:  InputDecoration(
-                 suffixIcon: IconButton(
+              decoration: InputDecoration(
+                suffixIcon: IconButton(
                   onPressed: () {
                     _urlController.clear();
                   },

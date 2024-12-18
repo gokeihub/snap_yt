@@ -1,5 +1,6 @@
 // ignore_for_file: deprecated_member_use
 
+// import 'package:desktop_window/desktop_window.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:hexcolor/hexcolor.dart';
@@ -10,17 +11,45 @@ import 'package:package_info_plus/package_info_plus.dart';
 import 'package:http/http.dart' as http;
 // import 'package:window_manager/window_manager.dart';
 import 'page/setting/screen/setting.dart';
-import 'page/video_download/video_download.dart';
+// import 'page/video_download/video_download.dart';
 import 'page/youtube_download/youtube_download.dart';
 import 'provider/theme_provider.dart';
 import 'youtube_serch/youtube_search.dart';
+// import 'youtube_serch/youtube_search.dart';
 // import 'dart:io' show Platform;
 
-void main()  {
+void main() {
+  // WidgetsFlutterBinding.ensureInitialized();
   // WidgetsFlutterBinding.ensureInitialized();
   // await windowManager.ensureInitialized();
 
   // if (Platform.isWindows || Platform.isLinux || Platform.isMacOS) {
+  //   Size size = await DesktopWindow.getWindowSize();
+  //   print(size);
+  //   await DesktopWindow.setWindowSize(
+  //       Size(800, 600)); // Set the desired window size
+
+  //   // Disable resizing (optional)
+  //   await DesktopWindow.setMinWindowSize(
+  //       Size(800, 600)); // Set minimum window size to prevent resizing
+
+  //   // Optionally, disable the window from being resizable
+  //   await DesktopWindow.setMaxWindowSize(Size(1000, 600)); // Set
+
+  // await DesktopWindow.setMinWindowSize(Size(400, 400));
+  // await DesktopWindow.setMaxWindowSize(Size(800, 800));
+
+  // await DesktopWindow.resetMaxWindowSize();
+  // await DesktopWindow.toggleFullScreen();
+  // bool isFullScreen = await DesktopWindow.getFullScreen();
+  // await DesktopWindow.setFullScreen(true);
+  // await DesktopWindow.setFullScreen(false);
+  // bool hasBorders = await DesktopWindow.hasBorders;
+  // await DesktopWindow.setBorders(false);
+  // await DesktopWindow.setBorders(true);
+  // await DesktopWindow.toggleBorders();
+  // await DesktopWindow.focus();
+  // }
   //   await windowManager.ensureInitialized();
 
   //   WindowOptions windowOptions = const WindowOptions(
@@ -35,7 +64,6 @@ void main()  {
   //     await windowManager.show();
   //     await windowManager.focus();
   //   });
-  // }
 
   runApp(
     MultiProvider(
@@ -65,7 +93,7 @@ class MyApp extends StatelessWidget {
         iconTheme: const IconThemeData(color: Colors.white70),
       ),
       themeMode: themeProvider.themeMode,
-      home: const YoutubeSearch(),
+      home: const SplashScreenPage(),
     );
   }
 }
@@ -200,8 +228,8 @@ class StartPageState extends State<StartPage> {
   }
 
   final List<Widget> _pages = [
+    const YoutubeSearch(),
     const YoutubeDownloader(),
-    const VideoDownloaderScreen(),
     const SettingPage(),
   ];
 
@@ -241,7 +269,8 @@ class StartPageState extends State<StartPage> {
             : _pages[currentIndex],
         bottomNavigationBar: isLargeScreen
             ? null
-            : buildBottomNavigationBar(MediaQuery.of(context).size.width, theme),
+            : buildBottomNavigationBar(
+                MediaQuery.of(context).size.width, theme),
       ),
     );
   }
