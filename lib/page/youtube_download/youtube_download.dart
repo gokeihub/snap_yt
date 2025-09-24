@@ -69,7 +69,7 @@ class YoutubeDownloaderState extends State<YoutubeDownloader> {
     }
   }
 
-  Future<void> _downloadAudio1(String videoId, String savePath) async {
+  Future<void> _downloadAudioPlaylistWorker(String videoId, String savePath) async {
     final yt = YoutubeExplode();
 
     try {
@@ -119,7 +119,7 @@ class YoutubeDownloaderState extends State<YoutubeDownloader> {
         final savePath =
             '${downloadsDir.path}/${_sanitizeFileName(video.title)}.mp3';
 
-        await _downloadAudio1(video.id.value, savePath);
+        await _downloadAudioPlaylistWorker(video.id.value, savePath);
 
         setState(() {
           _tasks.add(_DownloadTask(
